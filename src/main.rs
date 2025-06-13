@@ -1,4 +1,4 @@
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, HttpResponse, Responder};
 use dotenv::dotenv;
 use sqlx::PgPool;
 use std::env;
@@ -9,6 +9,16 @@ mod utils;
 mod modules;
 
 use utils::constants::{api, server};
+use utils::response::GenericResponse;
+use actix_web::http::StatusCode;
+
+async fn not_found() -> impl Responder {
+    HttpResponse::NotFound().json(GenericResponse {
+        status: StatusCode::NOT_FOUND.as_u16(),
+        data: None::<()>,
+        message: "The requested resource was not found".to_string(),
+    })
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -33,6 +43,7 @@ async fn main() -> std::io::Result<()> {
                     .configure(modules::users::routes::init)
                     .configure(modules::transactions::routes::init)
             )
+            .default_service(web::route().to(not_found))
     })
         .bind(("127.0.0.1", port))?
         .run()
