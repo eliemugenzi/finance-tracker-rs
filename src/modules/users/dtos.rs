@@ -22,13 +22,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-fn validate_role(role: &Option<String>) -> Result<(), ValidationError> {
-    if let Some(r) = role {
-        if Role::from_str(&r.to_uppercase()).is_err() {
-            let mut error = ValidationError::new("role");
-            error.message = Some("Role must be 'USER' or 'ADMIN'".into());
-            return Err(error);
-        }
-    }
-    Ok(())
-}
+// fn validate_role(role: &Option<String>) -> Result<(), ValidationError> {
+//     if let Some(r) = role {
+//         if Role::from_str(&r.to_uppercase()).is_err() {
+//             let mut error = ValidationError::new("role");
+//             error.message = Some("Role must be 'USER' or 'ADMIN'".into());
+//             return Err(error);
+//         }
+//     }
+//     Ok(())
+// }

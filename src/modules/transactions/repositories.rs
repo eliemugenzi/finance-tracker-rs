@@ -1,8 +1,6 @@
 use sqlx::PgPool;
 use bigdecimal::BigDecimal;
-use chrono::NaiveDate;
 use std::str::FromStr;
-
 
 use crate::modules::transactions::models::Transaction;
 
@@ -12,7 +10,6 @@ pub async fn insert_transaction(
     amount: f64,
     category: &str,
     description: &str,
-    date: NaiveDate,
 ) -> Result<Transaction, sqlx::Error> {
     if amount.is_nan() || amount.is_infinite() {
         return Err(sqlx::Error::Decode("Invalid f64: NaN or infinite".into()));

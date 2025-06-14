@@ -1,4 +1,3 @@
-use chrono::NaiveDate;
 use sqlx::PgPool;
 
 use crate::modules::transactions::models::Transaction;
@@ -11,9 +10,8 @@ pub async fn record_user_transaction(
     amount: f64,
     category: &str,
     description: &str,
-    date: &NaiveDate,
 ) -> Result<Transaction, sqlx::Error> {
-    insert_transaction(pool, user_id, amount, category, description, *date).await
+    insert_transaction(pool, user_id, amount, category, description).await
 }
 
 pub async fn list_user_transactions(pool: &PgPool, user_id: i32) -> Result<Vec<Transaction>, sqlx::Error> {

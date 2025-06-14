@@ -1,51 +1,68 @@
-use actix_web::{web, App, HttpServer, HttpResponse, Responder};
+use actix_web::{web, App, HttpServer, middleware};
+use actix_cors::Cors;
 use dotenv::dotenv;
-use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use std::env;
+use env_logger::Env;
+use log::LevelFilter;
 
-mod config;
-mod middleware;
-mod utils;
-mod modules;
-
-use utils::constants::{api, server};
-use utils::response::GenericResponse;
-use actix_web::http::StatusCode;
-
-async fn not_found() -> impl Responder {
-    HttpResponse::NotFound().json(GenericResponse {
-        status: StatusCode::NOT_FOUND.as_u16(),
-        data: None::<()>,
-        message: "The requested resource was not found".to_string(),
-    })
-}
+use finance_tracker::{
+    modules::users::routes as user_routes,
+    modules::transactions::routes as transaction_routes,
+    utils::not_found,
+    utils::constants::api::API_PREFIX,
+    AppState,
+};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
-    env_logger::init();
+    
+    // Configure logging
+    env_logger::Builder::from_env(Env::default().default_filter_or("info"))
+        .filter_level(LevelFilter::Info)
+        .format_timestamp_millis()
+        .format_module_path(false)
+        .format_target(false)
+        .init();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let port = env::var("PORT")
-        .unwrap_or_else(|_| server::PORT.to_string())
+        .unwrap_or_else(|_| "8080".to_string())
         .parse::<u16>()
-        .expect("PORT must be a valid number");
-    let pool = PgPool::connect(&database_url)
+        .expect("PORT must be a number");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("Failed to create pool");
+
+    let app_state = web::Data::new(AppState { db: pool });
+
+    log::info!("🚀 Server starting at http://localhost:{}{}", port, API_PREFIX);
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .max_age(3600);
+
         App::new()
-            .app_data(web::Data::new(pool.clone()))
-            .wrap(middleware::logging::Logging)
+            .wrap(cors)
+            .wrap(middleware::Logger::new(
+                "%a %t \"%r\" %s %b \"%{Referer}i\" \"%{User-Agent}i\" %T"
+            ))
+            .app_data(app_state.clone())
             .service(
-                web::scope(api::API_PREFIX)
-                    .configure(modules::users::routes::init)
-                    .configure(modules::transactions::routes::init)
+                web::scope(API_PREFIX)
+                    .configure(user_routes::init)
+                    .configure(transaction_routes::init)
             )
-            .default_service(web::route().to(not_found))
+            .default_service(web::route().to(not_found::not_found))
     })
-        .bind(("127.0.0.1", port))?
-        .run()
-        .await
+    .bind(("127.0.0.1", port))?
+    .run()
+    .await
 }

@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use validator::{Validate};
-use chrono::NaiveDate;
 
 #[derive(Deserialize, Validate)]
 pub struct TransactionRequest {
@@ -10,8 +9,6 @@ pub struct TransactionRequest {
     pub category: String,
     #[validate(length(max = 255, message = "Description cannot exceed 255 characters"))]
     pub description: String,
-    #[serde(with = "date_format")]
-    pub date: NaiveDate,
 }
 
 mod date_format {

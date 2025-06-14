@@ -8,12 +8,20 @@ use crate::utils::jwt::Claims;
 use crate::utils::response::GenericResponse;
 use crate::utils::errors::AppError;
 use crate::middleware::jwt::JwtMiddleware;
+use crate::utils::roles::Role;
+use crate::AppState;
 
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/users")
-            .route("/register", web::post().to(register))
-            .route("/login", web::post().to(login))
+            .service(
+                web::resource("/register")
+                    .route(web::post().to(register))
+            )
+            .service(
+                web::resource("/login")
+                    .route(web::post().to(login))
+            )
             .service(
                 web::resource("/profile")
                     .wrap(JwtMiddleware)
@@ -23,37 +31,43 @@ pub fn init(cfg: &mut web::ServiceConfig) {
 }
 
 async fn register(
-    pool: web::Data<PgPool>,
-    user: web::Json<RegisterRequest>,
-) -> impl Responder {
-    if let Err(errors) = user.validate() {
-        return Err(AppError::Validation(errors));
-    }
-    match register_new_user(&pool, &user.username, &user.email, &user.password, user.role.as_ref()).await {
-        Ok(_) => Ok(HttpResponse::Created().json(GenericResponse {
-            status: StatusCode::CREATED.as_u16(),
-            data: None::<()>,
-            message: "User registered successfully".to_string(),
-        })),
-        Err(e) => Err(AppError::Database(e)),
-    }
+    state: web::Data<AppState>,
+    user_data: web::Json<RegisterRequest>,
+) -> Result<HttpResponse, AppError> {
+    user_data.validate()?;
+
+    let user = register_new_user(
+        &state.db,
+        &user_data.username,
+        &user_data.email,
+        &user_data.password,
+        user_data.role.as_ref(),
+    ).await?;
+
+    Ok(HttpResponse::Created().json(GenericResponse {
+        status: StatusCode::CREATED.as_u16(),
+        data: Some(serde_json::to_value(user).unwrap()),
+        message: "User registered successfully".to_string(),
+    }))
 }
 
 async fn login(
-    pool: web::Data<PgPool>,
+    state: web::Data<AppState>,
     credentials: web::Json<LoginRequest>,
-) -> impl Responder {
-    if let Err(errors) = credentials.validate() {
-        return Err(AppError::Validation(errors));
-    }
-    match login_user(&pool, &credentials.username, &credentials.password).await {
-        Ok(token) => Ok(HttpResponse::Ok().json(GenericResponse {
-            status: StatusCode::OK.as_u16(),
-            data: Some(serde_json::json!({ "token": token })),
-            message: "Login successful".to_string(),
-        })),
-        Err(_) => Err(AppError::InvalidCredentials),
-    }
+) -> Result<HttpResponse, AppError> {
+    credentials.validate()?;
+
+    let token = login_user(
+        &state.db,
+        &credentials.username,
+        &credentials.password,
+    ).await?;
+
+    Ok(HttpResponse::Ok().json(GenericResponse {
+        status: StatusCode::OK.as_u16(),
+        data: Some(serde_json::json!({ "token": token })),
+        message: "Login successful".to_string(),
+    }))
 }
 
 async fn get_profile(req: HttpRequest) -> impl Responder {

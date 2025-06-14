@@ -4,6 +4,28 @@ use chrono::{DateTime, Utc};
 
 use crate::modules::users::models::User;
 
+pub async fn check_user_exists(
+    pool: &PgPool,
+    username: &str,
+    email: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    let record = sqlx::query!(
+        "SELECT username, email FROM users WHERE username = $1 OR email = $2",
+        username,
+        email
+    )
+        .fetch_optional(pool)
+        .await?;
+
+    Ok(record.map(|r| {
+        if r.username == username {
+            "Username is already taken".to_string()
+        } else {
+            "Email is already taken".to_string()
+        }
+    }))
+}
+
 pub async fn insert_user(
     pool: &PgPool,
     username: &str,
